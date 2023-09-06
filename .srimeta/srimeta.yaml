@@ -8,20 +8,17 @@
 # This is a list of all SRI projects that can be (have been) charged against this project. 
 # It's important to keep historical SRI information, not just current active projects.
 sriProjects:
-- 'GA7734.A.0000.1234'
-- 'MK7110.A.G500.1234'
-- 'GA7730.A.5001.1234'
+- '101465.001.BASE.01.0001'
 
 # Who's responsible for this project? Please include PI and technical lead.
 # The first entry should be project leader or supervisor of the project.
 sriContacts:
-- 'project.lead@sri.com'
-- 'john.doe@sri.com'
-- 'jane.doe@sri.com'
+- 'han-pang.chiu@sri.com'
+- 'angel.daruna@sri.com'
 
 # A friendly description of the project.
 # Syntax note - do not use any single quotes within the description below unless you remove the surrounding single quotes.
-description: 'This is work to support DoD WARGAMES project.'
+description: 'This is work to support DARPA CriticalMAAS - MAPER project.'
 
 # What SRI orgs are involved in this work ?
 sriOrgs:
