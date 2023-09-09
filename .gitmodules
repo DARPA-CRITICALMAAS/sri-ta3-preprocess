@@ -1,0 +1,3 @@
+[submodule "eis_toolkit"]
+	path = eis_toolkit
+	url = https://github.com/GispoCoding/eis_toolkit.git
