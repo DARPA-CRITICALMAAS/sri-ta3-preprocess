@@ -4,7 +4,7 @@
     - Initialize local submodule config - `git submodule init`
     - Fetch data from the repo and check out the appropriate commit - `git submodule update`
 3. Create the conda environment - `conda env create -f environment.yml`
-4. Activate conda environment - `conda activate preprocessing`
+4. Activate conda environment - `conda activate aie-cmaas-pp`
 
 ### TODOs
 We originally were trying to go "top-down" by thinking of all possible functionalities needed, then finding the quickest way to implement each, then using those for specific examples we have. While not incorrect, it seems more of a challenge due to our inexperience with these problem. We'll instead take a "bottom-up" approach, where we're going to work towards specific examples which will help us realize the set of need functionalities and how to quickly implement them. See [TODO.md](./TODO.md) for more.
