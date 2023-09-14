@@ -71,7 +71,7 @@ def determine_parameters(df, kmpdeg_lat0=111.1, crs = 'EPSG:4326', kminpix=2.563
         'height' : height,
         'width' : width,
         'boundaries' : bounds,
-        'transform' : width,
+        'transform' : transform,
         'np_transform' : np_matrix_transform,
         'no_data_constant' : no_data_constant,
     }
