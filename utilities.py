@@ -2,6 +2,12 @@ import rasterio
 from rasterio.transform import from_origin
 import geopandas as gpd
 import numpy as np
+import pandas as pd
+
+def load_dataset(filename='data/2021_Table04_Datacube.csv', encoding_type='latin-1', index_col=None):
+    print(f"Loading {filename}")
+    df = pd.read_csv(filename, encoding=encoding_type, index_col=index_col)
+    return df
 
 def load_tif_file(tif_filename):
     # requires rasterio library
@@ -28,7 +34,7 @@ def determine_parameters(df, kmpdeg_lat0=111.1, crs = 'EPSG:4326', kminpix=2.563
     ### --------- OUTPUT(S) ---------
     # - dictionary with the following parameters: 'latitude_name' 'longitude_name' 'resolution' 
     #                                               'resolution_latitude' 'height' 'width' 'boundaries'
-    #                                               'transform' 'np_transform' 'no_data_constant'
+    #                                               'transform' 'np_transform' 'no_data_constant' 'crs'
     
     no_data_constant = -340282346638528859811704183484516925440.0
 
@@ -74,5 +80,6 @@ def determine_parameters(df, kmpdeg_lat0=111.1, crs = 'EPSG:4326', kminpix=2.563
         'transform' : transform,
         'np_transform' : np_matrix_transform,
         'no_data_constant' : no_data_constant,
+        'crs' : crs,
     }
     return output_dict
