@@ -34,7 +34,7 @@ def determine_parameters(df, kmpdeg_lat0=111.1, crs = 'EPSG:4326', kminpix=2.563
     ### --------- OUTPUT(S) ---------
     # - dictionary with the following parameters: 'latitude_name' 'longitude_name' 'resolution' 
     #                                               'resolution_latitude' 'height' 'width' 'boundaries'
-    #                                               'transform' 'np_transform' 'no_data_constant' 'crs'
+    #                                               'transform' 'np_transform' 'no_data_constant'
     
     no_data_constant = -340282346638528859811704183484516925440.0
 
