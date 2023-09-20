@@ -6,8 +6,10 @@ import pandas as pd
 import s2sphere as s2
 
 # computed bounds for Australia and US/Canada (Note: seems like US/Canada bounds have issues)
-bounds_australia = {'left': 112.91657, 'bottom': -54.7421128072652, 'right': 159.100865, 'top': -9.221274999999999}
-bounds_uscanada = {'left': -191.00025, 'bottom': 15.696449999999999, 'right': 179.754051886584, 'top': 90.05655}
+bounds_australia = {'left': 112.91657, 'bottom': -43.656585, 'right': 153.65, 'top': -9.221274999999999}
+bounds_uscanada = {'left': -187.495239520847, 'bottom': 23.575500000000005, 'right': -52.5, 'top': 83.67} # - Actual bounds
+bounds_uscanada1 = {'left': 172.504760479, 'bottom': 23.575500000000005, 'right': 180, 'top': 83.67} # - East hemisphere bounds
+bounds_uscanada2 = {'left': -180, 'bottom': 23.575500000000005, 'right': -52.5, 'top': 83.67} # - West hemisphere bounds
 
 def load_dataset(filename='data/2021_Table04_Datacube.csv', encoding_type='latin-1', index_col=None):
     print(f"Loading {filename}")
