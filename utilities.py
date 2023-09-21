@@ -118,18 +118,40 @@ def proximity_raster_of_vector_points(raster, vector_file, vector):
     vector_raster.close()
 
 
-def compute_bounds(rasters):
-    bottom = left = 180.0
-    top = right = -180.0
-    for raster in rasters:
-        if raster.bounds.left < left:
-            left = raster.bounds.left
-        if raster.bounds.bottom < bottom:
-            bottom = raster.bounds.bottom
-        if raster.bounds.top > top:
-            top = raster.bounds.top
-        if raster.bounds.right > right:
-            right = raster.bounds.right
+def compute_bounds(rasters, region=['Australia', 'USCanada'], type=['-180_to_180', 'compare_with_actual', 'majority'], esp=1.0):
+    if type == '-180_to_180':
+        bottom = left = 180.0
+        top = right = -180.0
+        for raster in rasters:
+            if raster.bounds.left < left:
+                left = raster.bounds.left
+            if raster.bounds.bottom < bottom:
+                bottom = raster.bounds.bottom
+            if raster.bounds.top > top:
+                top = raster.bounds.top
+            if raster.bounds.right > right:
+                right = raster.bounds.right
+    elif type == 'compare_with_actual':
+        if region == 'Australia':
+            eyeballed_bounds = {'left':112.9, 'bottom':-43.6, 'right':153.6, 'top':-9.5} # including Tasmania but not Macquarie Island
+            # eyeballed_bounds = {'left': 112.9, 'bottom': -54.5, 'right': 159, 'top': -9.5} # including Tasmania and Macquarie Island
+        elif region == 'USCanada':
+            eyeballed_bounds = {'left':-187.5, 'bottom':24.5, 'right':-52.6, 'top':83.15} # not including Hawaii
+        bottom = left = 180.0
+        top = right = -180.0
+        # # iterating through rasters
+        for raster in rasters:
+            if raster.bounds.left < left and raster.bounds.left > (eyeballed_bounds['left'] - eps):
+                left = raster.bounds.left
+            if raster.bounds.bottom < bottom and raster.bounds.bottom > (eyeballed_bounds['bottom'] - eps): 
+                bottom = raster.bounds.bottom
+            if raster.bounds.top > top and raster.bounds.top < (eyeballed_bounds['top'] + eps):
+                top = raster.bounds.top
+            if raster.bounds.right > right and raster.bounds.right < (eyeballed_bounds['right'] + eps): 
+                right = raster.bounds.right
+    elif type == 'majority':
+        # coming later
+
     return {"bottom":bottom, "top":top, "left":left, "right":right}
 
 
