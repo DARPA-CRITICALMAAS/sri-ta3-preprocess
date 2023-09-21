@@ -1,5 +1,6 @@
 import numpy as np
 import rasterio
+import pandas as pd
 import geopandas as gpd
 from sklearn import neighbors
 from pathlib import Path
@@ -118,7 +119,7 @@ def proximity_raster_of_vector_points(raster, vector_file, vector):
     vector_raster.close()
 
 
-def compute_bounds(rasters):
+def compute_bounds(rasters, verbosity=0):
     bottom = left = 180.0
     top = right = -180.0
     for raster in rasters:
@@ -130,7 +131,10 @@ def compute_bounds(rasters):
             top = raster.bounds.top
         if raster.bounds.right > right:
             right = raster.bounds.right
-    return {"bottom":bottom, "top":top, "left":left, "right":right}
+    grid_bounds = {"bottom":bottom, "top":top, "left":left, "right":right}
+    if verbosity:
+        print(f"Computed bounds - {grid_bounds}\n")
+    return grid_bounds
 
 
 def s2id_to_cellid(id):
@@ -163,25 +167,34 @@ def region_of_cellids(dict_bounds, s2_level):
     return cell_ids
 
 
-def s2_cell_center(cell_id=0):
-    c1 = s2.Cell(s2.CellId(cell_id))
+def s2_cell_center(cell_id):
+    c1 = s2.Cell(cell_id)
     c0 = s2.LatLng.from_point(c1.get_center())
-    return (c0.lat().degrees, c0.lng().degrees)
+    return (c0.lng().degrees, c0.lat().degrees)
 
 
-def s2_cell_polygon(cell_id=0):
-    c1 = s2.Cell(s2.CellId(cell_id))
+def s2_cell_polygon(cell_id):
+    c1 = s2.Cell(cell_id)
     s2_vertices = [s2.LatLng.from_point(c1.get_vertex(i)) for i in range(4)]
-    corr_vertices = [(s2_verx.lat().degrees, s2_verx.lng().degrees) for s2_verx in s2_vertices]
+    corr_vertices = [(s2_verx.lng().degrees, s2_verx.lat().degrees) for s2_verx in s2_vertices]
+    corr_vertices.append((s2_vertices[0].lng().degrees, s2_vertices[0].lat().degrees))
     polygon = Polygon(corr_vertices)
     return polygon
 
 
-def s2_cell_neighbors(cell_id, nn = [4, 8]):
-    c1 = s2.CellId(cell_id)
+def s2_cell_neighbors(c1, nn = [4, 8]):
     if nn == 4:
         neigh_id_list = [] # ???
     elif nn == 8:
         neigh_id_list = [neigh.id() for neigh in c1.get_all_neighbors(12)]
     return neigh_id_list
 
+
+def init_datacube(initial_col, empty_cols, verbosity=0):
+    datacube = pd.DataFrame(data=initial_col)
+    for col in empty_cols:
+        datacube[col] = np.nan
+    datacube["mask"] = True
+    if verbosity:
+        datacube.head()
+    return datacube
