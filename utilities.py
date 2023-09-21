@@ -4,6 +4,7 @@ import geopandas as gpd
 from sklearn import neighbors
 from pathlib import Path
 from tqdm import tqdm
+import s2sphere as s2
 
 def get_input_var_files(region):
     if "aus" in region.lower():
@@ -112,3 +113,31 @@ def proximity_raster_of_vector_points(raster, vector_file, vector):
     vector_raster = rasterio.open(vector_tif_file, "w", **raster.meta)
     vector_raster.write(proximity, 1)
     vector_raster.close()
+
+
+def s2id_to_cellid(id):
+    # input: id - must be an integer
+    # ouput: S2 CellId, where level is automatically determined
+    return s2.CellId(id)
+
+def latlong_to_cellid(lat, lon, s2_level):
+    # takes (lat,lon) point, and finds the CellId w/ respect to s2_level
+    point = s2.LatLng.from_degrees(lat, lon)
+    cellid = s2.CellId.from_lat_lng(point).parent(s2_level)
+    return cellid
+
+def region_of_cellids(dict_bounds, s2_level):
+    # takes bounds_australia (WORKS) or bounds_uscanada (ISSUES)
+    # outputs a list of all CellIds that cover the region
+    coverer = s2.RegionCoverer()
+    coverer.min_level = coverer.max_level = s2_level
+
+    # order matters, particularly for the s2.LatLngRect() function
+    min_lat_lng = s2.LatLng.from_degrees(dict_bounds['bottom'], dict_bounds['left']) # bottom left corner
+    max_lat_lng = s2.LatLng.from_degrees(dict_bounds['top'], dict_bounds['right']) # top right corner
+
+    # Create an S2LatLngRect from the boundary points
+    rect = s2.LatLngRect(min_lat_lng, max_lat_lng)
+
+    cell_ids = coverer.get_covering(rect)
+    return cell_ids
