@@ -91,12 +91,14 @@ def load_vector(vector_file, vector_path="data/LAWLEY22-RAW/geophysics/", verbos
         print(f"{vector.head()}\n\n")
     return vector
 
+
 def get_vector_pts(vector):
     try:
         vector_pts = vector.loc[:,["Longitude", "Latitude"]].values
     except:
         vector_pts = vector.loc[:,["Lon_WGS", "Lat_WGS"]].values
     return vector_pts
+
 
 def proximity_raster_of_vector_points(raster, vector_file, vector):
     # get the lat / lons of vector points
@@ -160,10 +162,12 @@ def region_of_cellids(dict_bounds, s2_level):
     cell_ids = coverer.get_covering(rect)
     return cell_ids
 
+
 def s2_cell_center(cell_id=0):
     c1 = s2.Cell(s2.CellId(cell_id))
     c0 = s2.LatLng.from_point(c1.get_center())
     return (c0.lat().degrees, c0.lng().degrees)
+
 
 def s2_cell_polygon(cell_id=0):
     c1 = s2.Cell(s2.CellId(cell_id))
@@ -171,4 +175,13 @@ def s2_cell_polygon(cell_id=0):
     corr_vertices = [(s2_verx.lat().degrees, s2_verx.lng().degrees) for s2_verx in s2_vertices]
     polygon = Polygon(corr_vertices)
     return polygon
+
+
+def s2_cell_neighbors(cell_id, nn = [4, 8]):
+    c1 = s2.CellId(cell_id)
+    if nn == 4:
+        neigh_id_list = [] # ???
+    elif nn == 8:
+        neigh_id_list = [neigh.id() for neigh in c1.get_all_neighbors(12)]
+    return neigh_id_list
 
