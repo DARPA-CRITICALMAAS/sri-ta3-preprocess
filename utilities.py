@@ -209,12 +209,12 @@ def s2_cell_neighbors(cell_id, nn = [4, 8]):
 
 
 def mvt_depoccur_to_s2cells(s2_df, mvt_df):
-    assert 'S2_ID' in s2_df.columns.to_list()
+    assert 's2_cell_id' in s2_df.columns.to_list()
     if 'MVT_Deposit' not in s2_df.columns.to_list():
         s2_df['MVT_Deposit'] = np.nan
     if 'MVT_Occurrencee' not in s2_df.columns.to_list():
         s2_df['MVT_Occurrence'] = np.nan
-    list_s2_IDs = np.array(s2_df['S2_ID'])
+    list_s2_IDs = np.array(s2_df['s2_cell_id'])
     notrecog = []
     for index in tqdm(range(len(mvt_df))):
         lat, lng = mvt_df.loc[index,'Latitude_EPSG4326'], mvt_df.loc[index,'Longitude_EPSG4326']
