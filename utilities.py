@@ -119,18 +119,41 @@ def proximity_raster_of_vector_points(raster, vector_file, vector):
     vector_raster.close()
 
 
-def compute_bounds(rasters, verbosity=0):
-    bottom = left = 180.0
-    top = right = -180.0
-    for raster in rasters:
-        if raster.bounds.left < left:
-            left = raster.bounds.left
-        if raster.bounds.bottom < bottom:
-            bottom = raster.bounds.bottom
-        if raster.bounds.top > top:
-            top = raster.bounds.top
-        if raster.bounds.right > right:
-            right = raster.bounds.right
+def compute_bounds(rasters, region=['Australia', 'USCanada'], type=['-180_to_180', 'compare_with_actual', 'majority'], esp=1.0, verbosity=0):
+    if type == '-180_to_180':
+        bottom = left = 180.0
+        top = right = -180.0
+        for raster in rasters:
+            if raster.bounds.left < left:
+                left = raster.bounds.left
+            if raster.bounds.bottom < bottom:
+                bottom = raster.bounds.bottom
+            if raster.bounds.top > top:
+                top = raster.bounds.top
+            if raster.bounds.right > right:
+                right = raster.bounds.right
+    elif type == 'compare_with_actual':
+        if region == 'Australia':
+            eyeballed_bounds = {'left':112.9, 'bottom':-43.6, 'right':153.6, 'top':-9.5} # including Tasmania but not Macquarie Island
+            # eyeballed_bounds = {'left': 112.9, 'bottom': -54.5, 'right': 159, 'top': -9.5} # including Tasmania and Macquarie Island
+        elif region == 'USCanada':
+            eyeballed_bounds = {'left':-187.5, 'bottom':24.5, 'right':-52.6, 'top':83.15} # not including Hawaii
+        bottom = left = 180.0
+        top = right = -180.0
+        # # iterating through rasters
+        for raster in rasters:
+            if raster.bounds.left < left and raster.bounds.left > (eyeballed_bounds['left'] - esp):
+                left = raster.bounds.left
+            if raster.bounds.bottom < bottom and raster.bounds.bottom > (eyeballed_bounds['bottom'] - esp): 
+                bottom = raster.bounds.bottom
+            if raster.bounds.top > top and raster.bounds.top < (eyeballed_bounds['top'] + esp):
+                top = raster.bounds.top
+            if raster.bounds.right > right and raster.bounds.right < (eyeballed_bounds['right'] + esp): 
+                right = raster.bounds.right
+    elif type == 'majority':
+        # coming later
+        raise NotImplementedError
+
     grid_bounds = {"bottom":bottom, "top":top, "left":left, "right":right}
     if verbosity:
         print(f"Computed bounds - {grid_bounds}\n")
@@ -198,3 +221,25 @@ def init_datacube(initial_col, empty_cols, verbosity=0):
     if verbosity:
         datacube.head()
     return datacube
+
+
+def mvt_depoccur_to_s2cells(s2_df, mvt_df):
+    assert 's2_cell_id' in s2_df.columns.to_list()
+    if 'MVT_Deposit' not in s2_df.columns.to_list():
+        s2_df['MVT_Deposit'] = np.nan
+    if 'MVT_Occurrencee' not in s2_df.columns.to_list():
+        s2_df['MVT_Occurrence'] = np.nan
+    list_s2_IDs = np.array(s2_df['s2_cell_id'])
+    notrecog = []
+    for index in tqdm(range(len(mvt_df))):
+        lat, lng = mvt_df.loc[index,'Latitude_EPSG4326'], mvt_df.loc[index,'Longitude_EPSG4326']
+        s2_cell = latlong_to_cellid(lat, lng, s2_level=12)
+        s2_cellid = s2_cell.id()
+        if s2_cellid in list_s2_IDs:
+            location = np.where(list_s2_IDs == s2_cellid)[0][0]
+            s2_df.at[location,'MVT_Deposit'] = mvt_df.loc[index,'Training_MVT_Deposit']
+            s2_df.at[location,'MVT_Occurrence'] = mvt_df.loc[index,'Training_MVT_Occurrence']
+        else:
+            notrecog.append(s2_cellid)
+    return s2_df, notrecog
+
