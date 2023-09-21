@@ -207,3 +207,23 @@ def s2_cell_neighbors(cell_id, nn = [4, 8]):
         neigh_id_list = [neigh.id() for neigh in c1.get_all_neighbors(12)]
     return neigh_id_list
 
+
+def mvt_depoccur_to_s2cells(s2_df, mvt_df):
+    assert 'S2_ID' in s2_df.columns.to_list()
+    if 'MVT_Deposit' not in s2_df.columns.to_list():
+        s2_df['MVT_Deposit'] = np.nan
+    if 'MVT_Occurrencee' not in s2_df.columns.to_list():
+        s2_df['MVT_Occurrence'] = np.nan
+    list_s2_IDs = np.array(s2_df['S2_ID'])
+    notrecog = []
+    for index in tqdm(range(len(mvt_df))):
+        lat, lng = mvt_df.loc[index,'Latitude_EPSG4326'], mvt_df.loc[index,'Longitude_EPSG4326']
+        s2_cell = latlong_to_cellid(lat, lng, s2_level=12)
+        s2_cellid = s2_cell.id()
+        if s2_cellid in list_s2_IDs:
+            location = np.where(list_s2_IDs == s2_cellid)[0][0]
+            s2_df.at[location,'MVT_Deposit'] = mvt_df.loc[index,'Training_MVT_Deposit']
+            s2_df.at[location,'MVT_Occurrence'] = mvt_df.loc[index,'Training_MVT_Occurrence']
+        else:
+            notrecog.append(s2_cellid)
+    return s2_df, notrecog
