@@ -5,6 +5,7 @@ from sklearn import neighbors
 from pathlib import Path
 from tqdm import tqdm
 import s2sphere as s2
+from shapely.geometry import Polygon
 
 def get_input_var_files(region):
     if "aus" in region.lower():
@@ -158,3 +159,16 @@ def region_of_cellids(dict_bounds, s2_level):
 
     cell_ids = coverer.get_covering(rect)
     return cell_ids
+
+def s2_cell_center(cell_id=0):
+    c1 = s2.Cell(s2.CellId(cell_id))
+    c0 = s2.LatLng.from_point(c1.get_center())
+    return (c0.lat().degrees, c0.lng().degrees)
+
+def s2_cell_polygon(cell_id=0):
+    c1 = s2.Cell(s2.CellId(cell_id))
+    s2_vertices = [s2.LatLng.from_point(c1.get_vertex(i)) for i in range(4)]
+    corr_vertices = [(s2_verx.lat().degrees, s2_verx.lng().degrees) for s2_verx in s2_vertices]
+    polygon = Polygon(corr_vertices)
+    return polygon
+
