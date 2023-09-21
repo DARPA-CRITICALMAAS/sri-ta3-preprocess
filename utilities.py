@@ -115,16 +115,33 @@ def proximity_raster_of_vector_points(raster, vector_file, vector):
     vector_raster.close()
 
 
+def compute_bounds(rasters):
+    bottom = left = 180.0
+    top = right = -180.0
+    for raster in rasters:
+        if raster.bounds.left < left:
+            left = raster.bounds.left
+        if raster.bounds.bottom < bottom:
+            bottom = raster.bounds.bottom
+        if raster.bounds.top > top:
+            top = raster.bounds.top
+        if raster.bounds.right > right:
+            right = raster.bounds.right
+    return {"bottom":bottom, "top":top, "left":left, "right":right}
+
+
 def s2id_to_cellid(id):
     # input: id - must be an integer
     # ouput: S2 CellId, where level is automatically determined
     return s2.CellId(id)
+
 
 def latlong_to_cellid(lat, lon, s2_level):
     # takes (lat,lon) point, and finds the CellId w/ respect to s2_level
     point = s2.LatLng.from_degrees(lat, lon)
     cellid = s2.CellId.from_lat_lng(point).parent(s2_level)
     return cellid
+
 
 def region_of_cellids(dict_bounds, s2_level):
     # takes bounds_australia (WORKS) or bounds_uscanada (ISSUES)
