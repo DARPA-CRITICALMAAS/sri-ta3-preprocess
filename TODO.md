@@ -12,7 +12,21 @@
     - Make notebook to *"Implement preprocessing needed for geophysical input variables"* (done)
     - Write notebook cell(s) that load geophysical raster files (`.tif`). (done)
     - Write notebook cell(s) that load geophysical vector files (`.shp`). Includes grav and mag worms. (done)
-    - Write notebook cell(s) that convert geophysical vector files into appropriate raster files. E.g. grav worm vector files need to be converted to proximity.
-    - Write notebook cell(s) that convert training vector files into raster files. E.g. MVT mineral occurences with Lat/Long into a mask raster (presence/absence).
-    - Write notebook cell(s) that unifies all geophysical and training raster data
+    - Write notebook cell(s) that convert geophysical vector files into appropriate raster files. E.g. grav worm vector files need to be converted to proximity. - (done)
+    - Write notebook cell(s) that convert training vector files into raster files. E.g. MVT mineral occurences with Lat/Long into a mask raster (presence/absence). - Vasily
+    - (likely others are missing, add them)
+    - Write notebook cell(s) that unifies all geophysical and training raster data - Angel
     
+
+
+3. Extract the grid - query the S2 library for the grid cells at appropriate resolution within the chosen bounds
+4. Now initialize the "datacube" - make a geopandas [or pandas?] table where each row is one cell with the grid from 3. and has no columns yet
+5. Add grid relevant info to data cube - make first column(s) be address (and other relevant, reusable info, e.g. lat/log) of every grid cells
+6. Add mask to datacube - make next column be for mask of whether data is present or not
+7. Add all other columns to the table with empty values - i.e. the input variables from .shp or .tif
+8. Populate datacube with info
+   a. Start a for loop where one loop goes through grid cells and other loop goes through input data (columns of datacube which are vector / raster files above)
+   b. for every grid cell, grab the boundaries of the grid cell
+   c. --- for every input data, query that file (tif or shp) for the data value(s) within the grid cell boundaries from b. - there is likely a QGIS tool to do this
+   d. once data is written to a grid cell, unmask it
+9. output the datacube as raster or geopandas table
