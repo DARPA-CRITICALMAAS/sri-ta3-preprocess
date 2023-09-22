@@ -58,9 +58,7 @@ def get_input_var_files(region):
 
 def load_rasters(raster_files, rasters_path="data/LAWLEY22-RAW/geophysics/", verbosity=0):
     rasters = []
-    pbar = tqdm(raster_files)
-    for raster_file in pbar:
-        pbar.set_description(f"Loading {raster_file}")
+    for raster_file in raster_files:
         rasters.append(load_raster(raster_file, rasters_path, verbosity))
     return rasters
 
@@ -119,8 +117,8 @@ def proximity_raster_of_vector_points(raster, vector_file, vector):
     vector_raster.close()
 
 
-def compute_bounds(rasters, region=['Australia', 'USCanada'], type=['-180_to_180', 'compare_with_actual', 'majority'], esp=1.0, verbosity=0):
-    if type == '-180_to_180':
+def compute_bounds(rasters, region='Australia', option='-180_to_180', esp=1.0, verbosity=0):
+    if option == '-180_to_180':
         bottom = left = 180.0
         top = right = -180.0
         for raster in rasters:
@@ -132,7 +130,7 @@ def compute_bounds(rasters, region=['Australia', 'USCanada'], type=['-180_to_180
                 top = raster.bounds.top
             if raster.bounds.right > right:
                 right = raster.bounds.right
-    elif type == 'compare_with_actual':
+    elif option == 'compare_with_actual':
         if region == 'Australia':
             eyeballed_bounds = {'left':112.9, 'bottom':-43.6, 'right':153.6, 'top':-9.5} # including Tasmania but not Macquarie Island
             # eyeballed_bounds = {'left': 112.9, 'bottom': -54.5, 'right': 159, 'top': -9.5} # including Tasmania and Macquarie Island
@@ -150,7 +148,7 @@ def compute_bounds(rasters, region=['Australia', 'USCanada'], type=['-180_to_180
                 top = raster.bounds.top
             if raster.bounds.right > right and raster.bounds.right < (eyeballed_bounds['right'] + esp): 
                 right = raster.bounds.right
-    elif type == 'majority':
+    elif option == 'majority':
         # coming later
         raise NotImplementedError
 
