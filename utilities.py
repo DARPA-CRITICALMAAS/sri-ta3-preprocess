@@ -56,6 +56,11 @@ def get_input_var_files(region):
     return tif_files, shp_files
 
 
+def load_dataset(filename='data/2021_Table04_Datacube.csv', encoding_type='latin-1', index_col=None):
+    df = pd.read_csv(filename, encoding=encoding_type, index_col=index_col)
+    return df
+
+
 def load_rasters(raster_files, rasters_path="data/LAWLEY22-RAW/geophysics/", verbosity=0):
     rasters = []
     for raster_file in raster_files:
@@ -203,7 +208,7 @@ def s2_cell_polygon(cell_id):
     return polygon
 
 
-def s2_cell_neighbors(c1, nn = [4, 8]):
+def s2_cell_neighbors(c1, nn = 8):
     if nn == 4:
         neigh_id_list = [] # ???
     elif nn == 8:
@@ -221,23 +226,67 @@ def init_datacube(initial_col, empty_cols, verbosity=0):
     return datacube
 
 
-def mvt_depoccur_to_s2cells(s2_df, mvt_df):
+def mvt_dep_occur_to_s2cells(s2_df, mvt_df, colname='MVT_Deposit'):
     assert 's2_cell_id' in s2_df.columns.to_list()
-    if 'MVT_Deposit' not in s2_df.columns.to_list():
-        s2_df['MVT_Deposit'] = np.nan
-    if 'MVT_Occurrencee' not in s2_df.columns.to_list():
-        s2_df['MVT_Occurrence'] = np.nan
+    assert colname in ['MVT_Deposit', 'MVT_Occurrence']
+    if colname not in s2_df.columns.to_list():
+        s2_df[colname] = False
     list_s2_IDs = np.array(s2_df['s2_cell_id'])
     notrecog = []
-    for index in tqdm(range(len(mvt_df))):
-        lat, lng = mvt_df.loc[index,'Latitude_EPSG4326'], mvt_df.loc[index,'Longitude_EPSG4326']
+    for index in range(len(mvt_df)):
+        lat, lng = mvt_df.loc[index,'Latitude'], mvt_df.loc[index,'Longitude']
         s2_cell = latlong_to_cellid(lat, lng, s2_level=12)
         s2_cellid = s2_cell.id()
         if s2_cellid in list_s2_IDs:
             location = np.where(list_s2_IDs == s2_cellid)[0][0]
-            s2_df.at[location,'MVT_Deposit'] = mvt_df.loc[index,'Training_MVT_Deposit']
-            s2_df.at[location,'MVT_Occurrence'] = mvt_df.loc[index,'Training_MVT_Occurrence']
+            s2_df.at[location, colname] = True
         else:
             notrecog.append(s2_cellid)
     return s2_df, notrecog
 
+
+def process_raw_deposit_file(csv_file, csv_path='data/', region='Australia', dep_grp='MVT', verbosity=0):
+    assert region in ['Australia', 'USCanada']
+    assert dep_grp in ['MVT', 'CD']
+    df = load_dataset(f'{csv_path}{csv_file}')
+
+    if dep_grp == 'MVT':
+        df = df[df['Dep_Grp'] == 'Mississippi Valley-type (Zn, Pb)']
+    elif dep_grp == 'CD':
+        df = df[df['Dep_Grp'] == 'Clastic-dominated (Zn, Pb)']
+    df = df[df['Site_Class'] != 'District'] # only Deposit and Occurrence
+
+    if region == 'Australia':
+        df = df[df['Admin'] == 'Australia']
+    elif region == 'USCanada':
+        df = df[df['Admin'] != 'Australia']
+
+    df = df.drop(columns=['Admin','Dep_Grp','Source','Dep_Type','Dep_Name','Tonnage_Mt','Cu_pct','Zn_pct','Pb_pct','Ag_ppm','Au_ppm'])
+
+    df_deposit = df[df['Site_Class']=='Deposit']
+    df_deposit = df_deposit.drop_duplicates().reset_index(drop=True)
+    df_occurrence = df[df['Site_Class']=='Occurrence']
+    df_occurrence = df_occurrence.drop_duplicates().reset_index(drop=True)
+    return df_deposit, df_occurrence
+
+
+def neighbor_deposits(df, deptype='MVT'):
+    assert deptype in ['MVT','CD']
+    s2_cells_all = np.array(df['s2_cell_id'])
+
+    df[f'{deptype}_DepositOccurrence'] = df.apply(lambda row: True if True in [row[f'{deptype}_Deposit'], row[f'{deptype}_Occurrence']] else False, axis=1)
+    s2_cells_do = np.array(df[df[f'{deptype}_DepositOccurrence']==True]['s2_cell_id'])
+
+    s2_cells_don = s2_cells_do
+    for cell in s2_cells_do:
+        neighbors_cells = s2_cell_neighbors(s2id_to_cellid(int(cell)), nn=8)
+        s2_cells_don = np.append(s2_cells_don, np.array(neighbors_cells))
+        # s2_cells_all = np.concatenate([s2_cells_all, neighbors_cells])
+
+    s2_cells_don = np.unique(s2_cells_don)
+    s2_cells_don = np.intersect1d(s2_cells_don, s2_cells_all)
+    df[f'{deptype}_DepositOccurrenceNeighbors'] = False
+    for cell in s2_cells_don:
+        location = np.where(s2_cells_all == cell)[0][0]
+        df.at[location, f'{deptype}_DepositOccurrenceNeighbors'] = True
+    return df
