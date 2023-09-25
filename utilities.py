@@ -1,5 +1,6 @@
 import numpy as np
 import rasterio
+from rasterio.enums import Resampling
 import pandas as pd
 import geopandas as gpd
 from sklearn import neighbors
@@ -56,7 +57,7 @@ def get_input_var_files(region):
     return tif_files, shp_files
 
 
-def load_dataset(filename='data/2021_Table04_Datacube.csv', encoding_type='latin-1', index_col=None):
+def load_dataset(filename, encoding_type='latin-1', index_col=None):
     df = pd.read_csv(filename, encoding=encoding_type, index_col=index_col)
     return df
 
@@ -120,6 +121,34 @@ def proximity_raster_of_vector_points(raster, vector_file, vector):
     vector_raster = rasterio.open(vector_tif_file, "w", **raster.meta)
     vector_raster.write(proximity, 1)
     vector_raster.close()
+
+
+def resample_raster(base_raster, raster):
+    left, bottom, right, top = raster.bounds
+    resampled_height = int((top-bottom) / base_raster.res[0])
+    resampled_width = int((right-left) / base_raster.res[1])
+    # resample data to target shape
+    resampled_data = raster.read(
+        out_shape=(
+            raster.count,
+            resampled_height,
+            resampled_width
+        ),
+        resampling=Resampling.bilinear
+    ).squeeze()
+    # scale image transform
+    resampled_transform = raster.transform * raster.transform.scale(
+        (raster.width / resampled_width),
+        (raster.height / resampled_height)
+    )
+    # save the resampled raster
+    meta = raster.meta
+    meta.update(height=resampled_height)
+    meta.update(width=resampled_width)
+    meta.update(transform=resampled_transform)
+    resampled_raster = f"{Path(raster.files[0]).parent}/{Path(raster.files[0]).stem}_resampled.tif"
+    with rasterio.open(resampled_raster, 'w', **meta) as dst:
+        dst.write(resampled_data, 1)
 
 
 def compute_bounds(rasters, region='Australia', option='-180_to_180', esp=1.0, verbosity=0):
