@@ -7,7 +7,10 @@ from sklearn import neighbors
 from pathlib import Path
 from tqdm import tqdm
 import s2sphere as s2
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, Point
+import multiprocessing as mp
+from functools import partial
+
 
 def get_input_var_files(region):
     if "aus" in region.lower():
@@ -151,6 +154,17 @@ def resample_raster(base_raster, raster):
         dst.write(resampled_data, 1)
 
 
+def resample_rasters(base_raster, rasters, tifs):
+    base_raster = rasters[-1]
+    for raster_idx, raster in enumerate(rasters):
+        if raster.res[0] <= base_raster.res[0]: continue
+        resample_raster(base_raster, raster)
+        resampled_raster_file = f"{tifs[raster_idx]}_resampled"
+        rasters[raster_idx] = load_raster(resampled_raster_file, verbosity=1)
+        tifs[raster_idx] = resampled_raster_file
+    return rasters
+
+
 def compute_bounds(rasters, region='Australia', option='-180_to_180', esp=1.0, verbosity=0):
     if option == '-180_to_180':
         bottom = left = 180.0
@@ -190,6 +204,38 @@ def compute_bounds(rasters, region='Australia', option='-180_to_180', esp=1.0, v
     if verbosity:
         print(f"Computed bounds - {grid_bounds}\n")
     return grid_bounds
+
+
+def generate_s2_grid(rasters, store_dir):
+    def filter_grid_cell(grid_cell):
+        # filters s2 cells over water
+        ocean = load_vector("ne_10m_ocean","data/ocean/",verbosity=0)
+        if not ocean["geometry"][0].intersects(Point(s2_cell_center(grid_cell))):
+            return grid_cell
+        else:
+            return None
+
+    grid_cell_file = f"{store_dir}s2_grid_aus.npy"
+    try:
+        grid_cell_ids = np.load(grid_cell_file)
+    except OSError:
+        grid_bounds = compute_bounds(rasters, verbosity=1)
+        # gets all s2 cells
+        grid_cells = region_of_cellids(grid_bounds, s2_level=12)
+
+        # set up multiprocessing pool
+        print(f"Number of threads populating datacube - {mp.cpu_count()}")
+        pool = mp.Pool(mp.cpu_count())
+
+        # apply function to DataFrame in parallel
+        results = []
+        for result in tqdm(pool.imap(filter_grid_cell, grid_cells), total=len(grid_cells)):
+            if result is not None: results.append(result)
+
+        # store remaining cell ids
+        grid_cell_ids = [grid_cell.id() for grid_cell in results]
+        np.save(grid_cell_file, np.asarray(grid_cell_ids, dtype=np.uint64))
+    return grid_cell_ids
 
 
 def s2id_to_cellid(id):
@@ -249,9 +295,39 @@ def init_datacube(initial_col, empty_cols, verbosity=0):
     datacube = pd.DataFrame(data=initial_col)
     for col in empty_cols:
         datacube[col] = np.nan
-    datacube["mask"] = True
     if verbosity:
         datacube.head()
+    return datacube
+
+
+def populate_datacube(datacube, raster_files):
+    def process_datacube(row, cols):
+        s2cell = s2.CellId(int(row[1]["s2_cell_id"]))
+        row[1]["s2_cell_center"] = s2_cell_center(s2cell)
+        row[1]["s2_cell_poly"] = s2_cell_polygon(s2cell)
+        for col, raster in zip(cols, load_rasters(cols)):
+            try:
+                masked, _ = rasterio.mask.mask(raster, [row[1]["s2_cell_poly"]], crop=True)
+                if (raster.nodata == masked).all(): continue
+                row[1][col] = np.mean(masked[raster.nodata != masked])
+            except ValueError:
+                continue
+        return row[1]
+
+    process_datacube_multi = partial(process_datacube, cols=raster_files)
+
+    # set up multiprocessing pool
+    print(f"Number of threads populating datacube - {mp.cpu_count()}")
+    pool = mp.Pool(mp.cpu_count())
+
+    # apply function to DataFrame in parallel
+    results = []
+    for result in tqdm(pool.imap(process_datacube_multi, datacube.iterrows()), total=datacube.shape[0]):
+        results.append(result)
+
+    # merge results back together
+    datacube = pd.DataFrame.from_records(results)
+
     return datacube
 
 
@@ -319,3 +395,26 @@ def neighbor_deposits(df, deptype='MVT'):
         location = np.where(s2_cells_all == cell)[0][0]
         df.at[location, f'{deptype}_DepositOccurrenceNeighbors'] = True
     return df
+
+
+def rasterize_datacube(datacube, base_raster, data_dir):
+    datacube["MVT_Deposit"] = datacube["MVT_Deposit"].astype("float64")
+    datacube["MVT_Occurrence"] = datacube["MVT_Occurrence"].astype("float64")
+    datacube["MVT_DepositOccurrence"] = datacube["MVT_DepositOccurrence"].astype("float64")
+    datacube["MVT_DepositOccurrenceNeighbors"] = datacube["MVT_DepositOccurrenceNeighbors"].astype("float64")
+
+    tif_layers = [col for col in datacube.columns.to_list() if "s2" not in col]
+
+    meta = base_raster.meta.copy()
+    meta.update(compress='lzw')
+    meta.update(dtype="float64")
+    print(f"Metadata for output tifs: {meta}")
+
+    for tif_layer in tqdm(tif_layers, total=len(tif_layers)):
+        datacube_tif_file = f"{data_dir}datacube_{tif_layer}.tif"
+        with rasterio.open(datacube_tif_file, 'w+', **meta) as out:
+            out_arr = out.read(1)
+            # this is where we create a generator of geom, value pairs to use in rasterizing
+            shapes = list(datacube.loc[:,["s2_cell_poly",tif_layer]].itertuples(index=False, name=None))
+            burned = rasterio.features.rasterize(shapes=shapes, fill=meta["nodata"], out=out_arr, transform=out.transform)
+            out.write_band(1, burned)
