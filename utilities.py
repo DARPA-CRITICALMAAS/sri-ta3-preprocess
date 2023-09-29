@@ -1,5 +1,7 @@
 import numpy as np
 import rasterio
+import rasterio.mask
+import rasterio.features
 from rasterio.enums import Resampling
 import pandas as pd
 import geopandas as gpd
@@ -101,10 +103,12 @@ def load_vector(vector_file, vector_path="data/LAWLEY22-RAW/geophysics/", verbos
 
 
 def get_vector_pts(vector):
-    try:
-        vector_pts = vector.loc[:,["Longitude", "Latitude"]].values
-    except:
-        vector_pts = vector.loc[:,["Lon_WGS", "Lat_WGS"]].values
+    cols = vector.columns.tolist()
+    lng_col = [col for col in cols if "lon" in col.lower()]
+    lat_col = [col for col in cols if "lat" in col.lower()]
+    assert len(lng_col) == 1
+    assert len(lat_col) == 1
+    vector_pts = vector.loc[:,[lng_col[0], lat_col[0]]].values
     return vector_pts
 
 
@@ -155,7 +159,6 @@ def resample_raster(base_raster, raster):
 
 
 def resample_rasters(base_raster, rasters, tifs):
-    base_raster = rasters[-1]
     for raster_idx, raster in enumerate(rasters):
         if raster.res[0] <= base_raster.res[0]: continue
         resample_raster(base_raster, raster)
@@ -165,76 +168,114 @@ def resample_rasters(base_raster, rasters, tifs):
     return rasters
 
 
-def compute_bounds(rasters, region='Australia', option='-180_to_180', esp=1.0, verbosity=0):
-    if option == '-180_to_180':
-        bottom = left = 180.0
-        top = right = -180.0
-        for raster in rasters:
-            if raster.bounds.left < left:
-                left = raster.bounds.left
-            if raster.bounds.bottom < bottom:
-                bottom = raster.bounds.bottom
-            if raster.bounds.top > top:
-                top = raster.bounds.top
-            if raster.bounds.right > right:
-                right = raster.bounds.right
-    elif option == 'compare_with_actual':
-        if region == 'Australia':
-            eyeballed_bounds = {'left':112.9, 'bottom':-43.6, 'right':153.6, 'top':-9.5} # including Tasmania but not Macquarie Island
-            # eyeballed_bounds = {'left': 112.9, 'bottom': -54.5, 'right': 159, 'top': -9.5} # including Tasmania and Macquarie Island
-        elif region == 'USCanada':
-            eyeballed_bounds = {'left':-187.5, 'bottom':24.5, 'right':-52.6, 'top':83.15} # not including Hawaii
-        bottom = left = 180.0
-        top = right = -180.0
-        # # iterating through rasters
-        for raster in rasters:
-            if raster.bounds.left < left and raster.bounds.left > (eyeballed_bounds['left'] - esp):
-                left = raster.bounds.left
-            if raster.bounds.bottom < bottom and raster.bounds.bottom > (eyeballed_bounds['bottom'] - esp): 
-                bottom = raster.bounds.bottom
-            if raster.bounds.top > top and raster.bounds.top < (eyeballed_bounds['top'] + esp):
-                top = raster.bounds.top
-            if raster.bounds.right > right and raster.bounds.right < (eyeballed_bounds['right'] + esp): 
-                right = raster.bounds.right
-    elif option == 'majority':
-        # coming later
+def s2_bound_check(bounds):
+    if bounds["bottom"] < -90.0: return "bottom"
+    elif bounds["top"] > 90.0: return "top"
+    elif bounds["left"] < -180.0: return "left"
+    elif bounds["right"] > 180.0: return "right"
+    else: return True
+
+
+def split_bounds(bound, failure):
+    if failure == "bottom": # this is a brittle fix!!!
+        s2_bound = bound.copy()
+        s2_bound.update(bottom=-90.0)
+        return [s2_bound]
+    elif failure == "top": # this is a brittle fix!!!
+        s2_bound = bound.copy()
+        s2_bound.update(top=90.0)
+        return [s2_bound]
+    elif failure == "left":
+        s2_bound_left = bound.copy()
+        s2_bound_left.update(left=-180.0)
+        s2_bound_right = bound.copy()
+        s2_bound_right.update(right=180.0,left=bound["left"]+360.0)
+        return [s2_bound_left, s2_bound_right]
+    elif failure == "right":
+        s2_bound_left = bound.copy()
+        s2_bound_left.update(right=180.0)
+        s2_bound_right = bound.copy()
+        s2_bound_right.update(left=-180.0,right=bound["right"]-360.0)
+        return [s2_bound_left, s2_bound_right]
+    else:
         raise NotImplementedError
 
-    grid_bounds = {"bottom":bottom, "top":top, "left":left, "right":right}
+
+def compute_s2_bounds(bounds):
+    # recursively checks and fixes bounds until we have all acceptable bounds
+    s2_bounds = []
+    for bound in bounds:
+        failing_bound = s2_bound_check(bound)
+        if type(failing_bound) is str:
+            # split and fix
+            s2_bounds += compute_s2_bounds(split_bounds(bound, failing_bound))
+        else:
+            s2_bounds += [bound]
+    return s2_bounds
+
+
+def compute_bounds(rasters, verbosity=0):
+    bottom = left = 180.0
+    top = right = -180.0
+    for raster in rasters:
+        if raster.bounds.left < left:
+            left = raster.bounds.left
+        if raster.bounds.bottom < bottom:
+            bottom = raster.bounds.bottom
+        if raster.bounds.top > top:
+            top = raster.bounds.top
+        if raster.bounds.right > right:
+            right = raster.bounds.right
+    
+    # there's a chance our bounds go beyond the s2 range of L/R -180/180 and T/B of 90/-90
+    # if so, split the regions appriately
+    grid_bounds = compute_s2_bounds([{"bottom":bottom, "top":top, "left":left, "right":right}])
+
     if verbosity:
         print(f"Computed bounds - {grid_bounds}\n")
     return grid_bounds
 
+ocean = load_vector("ne_10m_ocean","data/ocean/",verbosity=0)
 
-def generate_s2_grid(rasters, store_dir):
-    def filter_grid_cell(grid_cell):
-        # filters s2 cells over water
-        ocean = load_vector("ne_10m_ocean","data/ocean/",verbosity=0)
-        if not ocean["geometry"][0].intersects(Point(s2_cell_center(grid_cell))):
-            return grid_cell
-        else:
-            return None
 
-    grid_cell_file = f"{store_dir}s2_grid_aus.npy"
+def process_chunk(chunk):
+    if mp.Process()._identity[1] == 1:
+        return np.asarray([grid_cell.id() for grid_cell in tqdm(chunk, total=len(chunk)) if not ocean["geometry"][0].intersects(Point(s2_cell_center(grid_cell)))], dtype=np.uint64)
+    else:
+        return np.asarray([grid_cell.id() for grid_cell in chunk if not ocean["geometry"][0].intersects(Point(s2_cell_center(grid_cell)))], dtype=np.uint64)
+
+
+def generate_s2_grid(rasters, store_dir, s2_file):
+    grid_cell_file = f"{store_dir}{s2_file}.npy"
     try:
         grid_cell_ids = np.load(grid_cell_file)
     except OSError:
-        grid_bounds = compute_bounds(rasters, verbosity=1)
+        grid_bounds_sets = compute_bounds(rasters, verbosity=1)
+        # grid_bounds_sets = [{"bottom":24.43, "left":-87.92, "top":31.43, "right":-76.11}]
+
         # gets all s2 cells
-        grid_cells = region_of_cellids(grid_bounds, s2_level=12)
+        grid_cells = []
+        for grid_bounds in grid_bounds_sets:
+            grid_cells += region_of_cellids(grid_bounds, s2_level=12)
 
         # set up multiprocessing pool
-        print(f"Number of threads populating datacube - {mp.cpu_count()}")
+        print(f"Number of threads checking s2 cells - {mp.cpu_count()}")
         pool = mp.Pool(mp.cpu_count())
 
-        # apply function to DataFrame in parallel
-        results = []
-        for result in tqdm(pool.imap(filter_grid_cell, grid_cells), total=len(grid_cells)):
-            if result is not None: results.append(result)
+        # Split the array into chunks
+        chunk_size = len(grid_cells) // mp.cpu_count()
+        chunks = [grid_cells[i:i + chunk_size] for i in range(0, len(grid_cells), chunk_size)]
+
+        # apply function to list in parallel
+        grid_cell_ids = np.concatenate(pool.map(process_chunk, chunks))
+
+        # Close the pool to free up resources
+        pool.close()
+        pool.join()
 
         # store remaining cell ids
-        grid_cell_ids = [grid_cell.id() for grid_cell in results]
-        np.save(grid_cell_file, np.asarray(grid_cell_ids, dtype=np.uint64))
+        np.save(grid_cell_file, grid_cell_ids)
+
     return grid_cell_ids
 
 
@@ -299,21 +340,20 @@ def init_datacube(initial_col, empty_cols, verbosity=0):
         datacube.head()
     return datacube
 
+def process_datacube(row, cols):
+    s2cell = s2.CellId(int(row[1]["s2_cell_id"]))
+    row[1]["s2_cell_center"] = s2_cell_center(s2cell)
+    row[1]["s2_cell_poly"] = s2_cell_polygon(s2cell)
+    for col, raster in zip(cols, load_rasters(cols)):
+        try:
+            masked, _ = rasterio.mask.mask(raster, [row[1]["s2_cell_poly"]], crop=True)
+            if (raster.nodata == masked).all(): continue
+            row[1][col] = np.mean(masked[raster.nodata != masked])
+        except ValueError:
+            continue
+    return row[1]
 
 def populate_datacube(datacube, raster_files):
-    def process_datacube(row, cols):
-        s2cell = s2.CellId(int(row[1]["s2_cell_id"]))
-        row[1]["s2_cell_center"] = s2_cell_center(s2cell)
-        row[1]["s2_cell_poly"] = s2_cell_polygon(s2cell)
-        for col, raster in zip(cols, load_rasters(cols)):
-            try:
-                masked, _ = rasterio.mask.mask(raster, [row[1]["s2_cell_poly"]], crop=True)
-                if (raster.nodata == masked).all(): continue
-                row[1][col] = np.mean(masked[raster.nodata != masked])
-            except ValueError:
-                continue
-        return row[1]
-
     process_datacube_multi = partial(process_datacube, cols=raster_files)
 
     # set up multiprocessing pool
@@ -324,6 +364,10 @@ def populate_datacube(datacube, raster_files):
     results = []
     for result in tqdm(pool.imap(process_datacube_multi, datacube.iterrows()), total=datacube.shape[0]):
         results.append(result)
+    
+    # Close the pool to free up resources
+    pool.close()
+    pool.join()
 
     # merge results back together
     datacube = pd.DataFrame.from_records(results)
