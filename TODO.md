@@ -40,7 +40,7 @@
       - output all layers to qgis - Angel (done)
       - verify geophysical - Angel (done)
       - verify labels (deposits, etc) - Vasily (done)
-    - confirm the woe_baseline result when using this new datacube - Vasily
+    - confirm the woe_baseline result when using this new datacube - Vasily (done)
 
 ## 2. Implement preprocessing needed for woe_update and gbm_preferred (i.e. geophysical + geological input variables)
 - Skip for now because it seems a lot of the geology data is totally missing or incorrect
