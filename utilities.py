@@ -8,6 +8,7 @@ import geopandas as gpd
 from sklearn import neighbors
 from pathlib import Path
 from tqdm import tqdm
+import os
 import s2sphere as s2
 from shapely.geometry import Polygon, Point
 import multiprocessing as mp
@@ -75,7 +76,8 @@ def load_rasters(raster_files, rasters_path="data/LAWLEY22-RAW/geophysics/", ver
 
 
 def load_raster(raster_file, raster_path="data/LAWLEY22-RAW/geophysics/", verbosity=0):
-    raster = rasterio.open(f"{raster_path}{raster_file}.tif")
+    # raster = rasterio.open(f"{raster_path}{raster_file}.tif")
+    raster = rasterio.open(os.path.join(raster_path, raster_file+".tif"))
     if verbosity:
         print(f"-------- {raster_file} raster details --------\n")
         info = {i: dtype for i, dtype in zip(raster.indexes, raster.dtypes)}
@@ -95,7 +97,8 @@ def load_vectors(vector_files, vectors_path="data/LAWLEY22-RAW/geophysics/", ver
 
 
 def load_vector(vector_file, vector_path="data/LAWLEY22-RAW/geophysics/", verbosity=0):
-    vector = gpd.read_file(f"{vector_path}{vector_file}.shp")
+    # vector = gpd.read_file(f"{vector_path}{vector_file}.shp")
+    vector = gpd.read_file(os.path.join(vector_path, vector_file+".shp"))
     if verbosity:
         print(f"-------- {vector_file} raster details --------\n")
         print(f"{vector.head()}\n\n")
