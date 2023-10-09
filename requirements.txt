@@ -1,0 +1,12 @@
+numpy
+rasterio
+pandas
+geopandas
+gdal
+scikit-learn
+matplotlib
+tqdm
+ipykernel
+notebook
+jupyterlab
+s2sphere==0.2.5

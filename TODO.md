@@ -40,10 +40,10 @@
       - output all layers to qgis - Angel (done)
       - verify geophysical - Angel (done)
       - verify labels (deposits, etc) - Vasily (done)
-    - confirm the woe_baseline result when using this new datacube - Vasily
+    - confirm the woe_baseline result when using this new datacube - Vasily (done)
 
 ## 2. Implement preprocessing needed for woe_update and gbm_preferred (i.e. geophysical + geological input variables)
-- Skip for now because it seems a lot of the geology data is totally missing or incorrect
+- Skip for now because we need to get traction on ML pipeline
 
 ## 3. Implement Lawley'22 raster output function
-- Make a function that rasterizes the Lawley'22 datacube's relevant columns - Vasily or Angel - NOTE we may want to rasterize the datacube that has already had the preprocessing done to it (i.e. removing outliers, standardizing data, imputing missing values, so on)
+- Make a function that rasterizes the Lawley'22 datacube's relevant columns - Vasily or Angel - NOTE we may want to rasterize the datacube that has already had the preprocessing done to it (i.e. removing outliers, standardizing data, imputing missing values, so on) (done)
