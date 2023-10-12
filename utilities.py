@@ -12,7 +12,6 @@ import s2sphere as s2
 from shapely.geometry import Polygon, Point
 import multiprocessing as mp
 from functools import partial
-import matplotlib.pyplot as plt
 
 
 def get_input_var_files(region):
@@ -443,50 +442,3 @@ def neighbor_deposits(df, deptype='MVT'):
         location = np.where(s2_cells_all == cell)[0][0]
         df.at[location, f'{deptype}_DepositOccurrenceNeighbors'] = True
     return df
-
-
-# def rasterize_datacube(datacube, meta, data_dir, region):
-#     datacube["MVT_Deposit"] = datacube["MVT_Deposit"].astype("float64")
-#     datacube["MVT_Occurrence"] = datacube["MVT_Occurrence"].astype("float64")
-#     datacube["MVT_DepositOccurrence"] = datacube["MVT_DepositOccurrence"].astype("float64")
-#     datacube["MVT_DepositOccurrenceNeighbors"] = datacube["MVT_DepositOccurrenceNeighbors"].astype("float64")
-
-#     tif_layers = [col for col in datacube.columns.to_list() if "s2" not in col]
-#     meta.update(count=len(tif_layers))
-
-#     datacube_tif_file = f"{data_dir}datacube_{region}.tif"
-#     with rasterio.open(datacube_tif_file, "w", **meta) as out:
-#         for idx, tif_layer in tqdm(enumerate(tif_layers), total=len(tif_layers)):
-#             # this is where we create a generator of geom, value pairs to use in rasterizing
-#             shapes = list(datacube.loc[:,["s2_cell_poly",tif_layer]].itertuples(index=False, name=None))
-#             burned = rasterio.features.rasterize(
-#                 shapes=shapes,
-#                 out_shape=(meta["height"],meta["width"]),
-#                 fill=meta["nodata"],
-#                 transform=out.transform
-#             )
-#             # writes the tif
-#             out.write_band(idx+1, burned)
-
-
-# def visualize_datacube(datacube, meta):
-#     datacube["MVT_Deposit"] = datacube["MVT_Deposit"].astype("float64")
-#     datacube["MVT_Occurrence"] = datacube["MVT_Occurrence"].astype("float64")
-#     datacube["MVT_DepositOccurrence"] = datacube["MVT_DepositOccurrence"].astype("float64")
-#     datacube["MVT_DepositOccurrenceNeighbors"] = datacube["MVT_DepositOccurrenceNeighbors"].astype("float64")
-
-#     tif_layers = [col for col in datacube.columns.to_list() if "s2" not in col]
-
-#     for idx, tif_layer in tqdm(enumerate(tif_layers), total=len(tif_layers)):
-#         # this is where we create a generator of geom, value pairs to use in rasterizing
-#         shapes = list(datacube.loc[:,["s2_cell_poly",tif_layer]].itertuples(index=False, name=None))
-#         burned = rasterio.features.rasterize(
-#             shapes=shapes,
-#             out_shape=(meta["height"],meta["width"]),
-#             fill=np.nan,
-#             transform=meta["transform"]
-#         )
-#         plt.imshow(burned, cmap="turbo")
-#         plt.colorbar()
-#         plt.title(tif_layer)
-#         plt.show()
