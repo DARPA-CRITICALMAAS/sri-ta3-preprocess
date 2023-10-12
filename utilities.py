@@ -12,6 +12,7 @@ import s2sphere as s2
 from shapely.geometry import Polygon, Point
 import multiprocessing as mp
 from functools import partial
+import matplotlib.pyplot as plt
 
 
 def get_input_var_files(region):
@@ -22,11 +23,7 @@ def get_input_var_files(region):
             "GeophysicsSatelliteGravity_ShapeIndex_Australia",
             "GeophysicsGravity_Australia",
             "GeophysicsGravity_HGM_Australia",
-            "GeophysicsGravity_UpCont30km_Australia",
             "GeophysicsGravity_UpCont30km_HGM_Australia",
-            "GeophysicsMagRTP_Australia",
-            "GeophysicsMagRTP_DeepSources_Australia",
-            "GeophysicsMagRTP_VD_Australia",
             "GeophysicsMagRTP_HGM_Australia",
             "GeophysicsMagRTP_HGMDeepSources_Australia",
         ]
@@ -44,11 +41,7 @@ def get_input_var_files(region):
             "GeophysicsSatelliteGravity_ShapeIndex_USCanada",
             "GeophysicsGravity_USCanada",
             "GeophysicsGravity_HGM_USCanada",
-            "GeophysicsGravity_Up30km_USCanada",
             "GeophysicsGravity_Up30km_HGM_USCanada",
-            "GeophysicsMag_RTP_USCanada",
-            "USCanadaMagRTP_DeepSources",
-            "GeophysicsMag_RTP_VD_USCanada",
             "GeophysicsMag_RTP_HGM_USCanada",
             "USCanadaMagRTP_HGMDeepSources",
         ]
@@ -67,14 +60,14 @@ def load_dataset(filename, encoding_type='latin-1', index_col=None):
     return df
 
 
-def load_rasters(raster_files, rasters_path="data/LAWLEY22-RAW/geophysics/", verbosity=0):
+def load_rasters(raster_files, rasters_path="data/LAWLEY22-RAW/", verbosity=0):
     rasters = []
     for raster_file in raster_files:
         rasters.append(load_raster(raster_file, rasters_path, verbosity))
     return rasters
 
 
-def load_raster(raster_file, raster_path="data/LAWLEY22-RAW/geophysics/", verbosity=0):
+def load_raster(raster_file, raster_path="data/LAWLEY22-RAW/", verbosity=0):
     raster = rasterio.open(f"{raster_path}{raster_file}.tif")
     if verbosity:
         print(f"-------- {raster_file} raster details --------\n")
@@ -85,7 +78,7 @@ def load_raster(raster_file, raster_path="data/LAWLEY22-RAW/geophysics/", verbos
     return raster
 
 
-def load_vectors(vector_files, vectors_path="data/LAWLEY22-RAW/geophysics/", verbosity=0):
+def load_vectors(vector_files, vectors_path="data/LAWLEY22-RAW/", verbosity=0):
     vectors = []
     pbar = tqdm(vector_files)
     for vector_file in pbar:
@@ -94,7 +87,7 @@ def load_vectors(vector_files, vectors_path="data/LAWLEY22-RAW/geophysics/", ver
     return vectors
 
 
-def load_vector(vector_file, vector_path="data/LAWLEY22-RAW/geophysics/", verbosity=0):
+def load_vector(vector_file, vector_path="data/LAWLEY22-RAW/", verbosity=0):
     vector = gpd.read_file(f"{vector_path}{vector_file}.shp")
     if verbosity:
         print(f"-------- {vector_file} raster details --------\n")
@@ -130,10 +123,11 @@ def proximity_raster_of_vector_points(raster, vector_file, vector):
     vector_raster.close()
 
 
-def resample_raster(base_raster, raster):
+def resample_raster(resolution, raster):
     left, bottom, right, top = raster.bounds
-    resampled_height = int((top-bottom) / base_raster.res[0])
-    resampled_width = int((right-left) / base_raster.res[1])
+    resampled_height = int((top-bottom) / resolution[0])
+    resampled_width = int((right-left) / resolution[1])
+
     # resample data to target shape
     resampled_data = raster.read(
         out_shape=(
@@ -143,11 +137,17 @@ def resample_raster(base_raster, raster):
         ),
         resampling=Resampling.bilinear
     ).squeeze()
+
     # scale image transform
-    resampled_transform = raster.transform * raster.transform.scale(
-        (raster.width / resampled_width),
-        (raster.height / resampled_height)
+    resampled_transform = rasterio.transform.from_bounds(
+        left,
+        bottom,
+        right,
+        top,
+        resampled_width,
+        resampled_height
     )
+
     # save the resampled raster
     meta = raster.meta
     meta.update(height=resampled_height)
@@ -158,10 +158,10 @@ def resample_raster(base_raster, raster):
         dst.write(resampled_data, 1)
 
 
-def resample_rasters(base_raster, rasters, tifs):
+def resample_rasters(resolution, rasters, tifs):
     for raster_idx, raster in enumerate(rasters):
-        if raster.res[0] <= base_raster.res[0]: continue
-        resample_raster(base_raster, raster)
+        if raster.res[0] <= resolution[0]: continue
+        resample_raster(resolution, raster)
         resampled_raster_file = f"{tifs[raster_idx]}_resampled"
         rasters[raster_idx] = load_raster(resampled_raster_file, verbosity=1)
         tifs[raster_idx] = resampled_raster_file
@@ -179,23 +179,23 @@ def s2_bound_check(bounds):
 def split_bounds(bound, failure):
     if failure == "bottom": # this is a brittle fix!!!
         s2_bound = bound.copy()
-        s2_bound.update(bottom=-90.0)
+        s2_bound.update(bottom=-89.9)
         return [s2_bound]
     elif failure == "top": # this is a brittle fix!!!
         s2_bound = bound.copy()
-        s2_bound.update(top=90.0)
+        s2_bound.update(top=89.9)
         return [s2_bound]
     elif failure == "left":
         s2_bound_left = bound.copy()
-        s2_bound_left.update(left=-180.0)
+        s2_bound_left.update(left=-179.9)
         s2_bound_right = bound.copy()
-        s2_bound_right.update(right=180.0,left=bound["left"]+360.0)
+        s2_bound_right.update(right=179.9,left=bound["left"]+360.0)
         return [s2_bound_left, s2_bound_right]
     elif failure == "right":
         s2_bound_left = bound.copy()
-        s2_bound_left.update(right=180.0)
+        s2_bound_left.update(right=179.9)
         s2_bound_right = bound.copy()
-        s2_bound_right.update(left=-180.0,right=bound["right"]-360.0)
+        s2_bound_right.update(left=-179.9,right=bound["right"]-360.0)
         return [s2_bound_left, s2_bound_right]
     else:
         raise NotImplementedError
@@ -215,8 +215,10 @@ def compute_s2_bounds(bounds):
 
 
 def compute_bounds(rasters, verbosity=0):
-    bottom = left = 180.0
-    top = right = -180.0
+    left = 180.0
+    right = -180.0
+    bottom = 90.0
+    top = -90.0
     for raster in rasters:
         if raster.bounds.left < left:
             left = raster.bounds.left
@@ -235,11 +237,12 @@ def compute_bounds(rasters, verbosity=0):
         print(f"Computed bounds - {grid_bounds}\n")
     return grid_bounds
 
-ocean = load_vector("ne_10m_ocean","data/ocean/",verbosity=0)
+
+ocean = load_vector("ne_10m_ocean","data/OCEAN/",verbosity=0)
 
 
 def process_chunk(chunk):
-    if mp.Process()._identity[1] == 1:
+    if mp.Process()._identity[0] == 1:
         return np.asarray([grid_cell.id() for grid_cell in tqdm(chunk, total=len(chunk)) if not ocean["geometry"][0].intersects(Point(s2_cell_center(grid_cell)))], dtype=np.uint64)
     else:
         return np.asarray([grid_cell.id() for grid_cell in chunk if not ocean["geometry"][0].intersects(Point(s2_cell_center(grid_cell)))], dtype=np.uint64)
@@ -251,7 +254,6 @@ def generate_s2_grid(rasters, store_dir, s2_file):
         grid_cell_ids = np.load(grid_cell_file)
     except OSError:
         grid_bounds_sets = compute_bounds(rasters, verbosity=1)
-        # grid_bounds_sets = [{"bottom":24.43, "left":-87.92, "top":31.43, "right":-76.11}]
 
         # gets all s2 cells
         grid_cells = []
@@ -340,6 +342,7 @@ def init_datacube(initial_col, empty_cols, verbosity=0):
         datacube.head()
     return datacube
 
+
 def process_datacube(row, cols):
     s2cell = s2.CellId(int(row[1]["s2_cell_id"]))
     row[1]["s2_cell_center"] = s2_cell_center(s2cell)
@@ -352,6 +355,7 @@ def process_datacube(row, cols):
         except ValueError:
             continue
     return row[1]
+
 
 def populate_datacube(datacube, raster_files):
     process_datacube_multi = partial(process_datacube, cols=raster_files)
@@ -441,24 +445,48 @@ def neighbor_deposits(df, deptype='MVT'):
     return df
 
 
-def rasterize_datacube(datacube, base_raster, data_dir):
-    datacube["MVT_Deposit"] = datacube["MVT_Deposit"].astype("float64")
-    datacube["MVT_Occurrence"] = datacube["MVT_Occurrence"].astype("float64")
-    datacube["MVT_DepositOccurrence"] = datacube["MVT_DepositOccurrence"].astype("float64")
-    datacube["MVT_DepositOccurrenceNeighbors"] = datacube["MVT_DepositOccurrenceNeighbors"].astype("float64")
+# def rasterize_datacube(datacube, meta, data_dir, region):
+#     datacube["MVT_Deposit"] = datacube["MVT_Deposit"].astype("float64")
+#     datacube["MVT_Occurrence"] = datacube["MVT_Occurrence"].astype("float64")
+#     datacube["MVT_DepositOccurrence"] = datacube["MVT_DepositOccurrence"].astype("float64")
+#     datacube["MVT_DepositOccurrenceNeighbors"] = datacube["MVT_DepositOccurrenceNeighbors"].astype("float64")
 
-    tif_layers = [col for col in datacube.columns.to_list() if "s2" not in col]
+#     tif_layers = [col for col in datacube.columns.to_list() if "s2" not in col]
+#     meta.update(count=len(tif_layers))
 
-    meta = base_raster.meta.copy()
-    meta.update(compress='lzw')
-    meta.update(dtype="float64")
-    print(f"Metadata for output tifs: {meta}")
+#     datacube_tif_file = f"{data_dir}datacube_{region}.tif"
+#     with rasterio.open(datacube_tif_file, "w", **meta) as out:
+#         for idx, tif_layer in tqdm(enumerate(tif_layers), total=len(tif_layers)):
+#             # this is where we create a generator of geom, value pairs to use in rasterizing
+#             shapes = list(datacube.loc[:,["s2_cell_poly",tif_layer]].itertuples(index=False, name=None))
+#             burned = rasterio.features.rasterize(
+#                 shapes=shapes,
+#                 out_shape=(meta["height"],meta["width"]),
+#                 fill=meta["nodata"],
+#                 transform=out.transform
+#             )
+#             # writes the tif
+#             out.write_band(idx+1, burned)
 
-    for tif_layer in tqdm(tif_layers, total=len(tif_layers)):
-        datacube_tif_file = f"{data_dir}datacube_{tif_layer}.tif"
-        with rasterio.open(datacube_tif_file, 'w+', **meta) as out:
-            out_arr = out.read(1)
-            # this is where we create a generator of geom, value pairs to use in rasterizing
-            shapes = list(datacube.loc[:,["s2_cell_poly",tif_layer]].itertuples(index=False, name=None))
-            burned = rasterio.features.rasterize(shapes=shapes, fill=meta["nodata"], out=out_arr, transform=out.transform)
-            out.write_band(1, burned)
+
+# def visualize_datacube(datacube, meta):
+#     datacube["MVT_Deposit"] = datacube["MVT_Deposit"].astype("float64")
+#     datacube["MVT_Occurrence"] = datacube["MVT_Occurrence"].astype("float64")
+#     datacube["MVT_DepositOccurrence"] = datacube["MVT_DepositOccurrence"].astype("float64")
+#     datacube["MVT_DepositOccurrenceNeighbors"] = datacube["MVT_DepositOccurrenceNeighbors"].astype("float64")
+
+#     tif_layers = [col for col in datacube.columns.to_list() if "s2" not in col]
+
+#     for idx, tif_layer in tqdm(enumerate(tif_layers), total=len(tif_layers)):
+#         # this is where we create a generator of geom, value pairs to use in rasterizing
+#         shapes = list(datacube.loc[:,["s2_cell_poly",tif_layer]].itertuples(index=False, name=None))
+#         burned = rasterio.features.rasterize(
+#             shapes=shapes,
+#             out_shape=(meta["height"],meta["width"]),
+#             fill=np.nan,
+#             transform=meta["transform"]
+#         )
+#         plt.imshow(burned, cmap="turbo")
+#         plt.colorbar()
+#         plt.title(tif_layer)
+#         plt.show()

@@ -1,8 +1,6 @@
 numpy
-rasterio
 pandas
 geopandas
-gdal
 scikit-learn
 matplotlib
 tqdm
