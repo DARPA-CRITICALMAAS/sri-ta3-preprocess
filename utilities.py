@@ -67,7 +67,7 @@ def load_rasters(raster_files, rasters_path="data/LAWLEY22-RAW/", verbosity=0):
     return rasters
 
 
-def load_raster(raster_file, raster_path="data/LAWLEY22-RAW/geophysics/", verbosity=0):
+def load_raster(raster_file, raster_path="data/LAWLEY22-RAW/", verbosity=0):
     raster = rasterio.open(os.path.join(raster_path, raster_file+".tif"))
     if verbosity:
         print(f"-------- {raster_file} raster details --------\n")
@@ -87,7 +87,7 @@ def load_vectors(vector_files, vectors_path="data/LAWLEY22-RAW/", verbosity=0):
     return vectors
 
 
-def load_vector(vector_file, vector_path="data/LAWLEY22-RAW/geophysics/", verbosity=0):
+def load_vector(vector_file, vector_path="data/LAWLEY22-RAW/", verbosity=0):
     vector = gpd.read_file(os.path.join(vector_path, vector_file+".shp"))
     if verbosity:
         print(f"-------- {vector_file} raster details --------\n")
