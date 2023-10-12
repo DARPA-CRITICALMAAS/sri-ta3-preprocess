@@ -25,5 +25,5 @@ data
 ```
 
 ### Preprocessing Geophysical Data
-Preprocessing to convert geophysical and Basin-hosted (CD/SEDEX and MVT) Zn-Pb deposits/prospects datasets into a datacube using the [S2 grid system](https://s2geometry.io/) for all continents in Lawley'22 are within a corresponding notebook. Please open and view/run the cells of the notebook to view/run the preprocessing steps. For convenience, the `generate datacubes.sh` script is also provided to generate datacubes for all continents using the s2 cell grid system.
+Preprocessing to convert geophysical and Basin-hosted (CD/SEDEX and MVT) Zn-Pb deposits/prospects datasets into a datacube using the [S2 grid system](https://s2geometry.io/) for all continents in Lawley'22 are within a corresponding notebook. Please open and view/run the cells of the notebook to view/run the preprocessing steps. For convenience, the `generate_datacubes.sh` script is also provided to generate datacubes for all continents using the s2 cell grid system.
 
